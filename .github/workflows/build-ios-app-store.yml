@@ -1,4 +1,5 @@
 name: Build iOS App Store
+run-name: Scrollblock App Store build
 
 on:
   workflow_dispatch:

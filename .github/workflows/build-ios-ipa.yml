@@ -1,4 +1,5 @@
 name: Build iOS IPA
+run-name: Scrollblock unsigned IPA
 
 on:
   workflow_dispatch:
