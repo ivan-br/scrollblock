@@ -1,298 +1,58 @@
-import {
-  memo,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-} from "react";
-import { Keyboard, Pressable, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { BookSession } from "../src/market/book-session";
-import { useCatalogs, useForeground } from "../src/market/hooks";
-import type { Exchange, Market, Status } from "../src/market/types";
-import { SymbolPicker } from "../src/components/symbol-picker";
-import { PriceStepInput } from "../src/components/price-step-input";
-import { OrderBookView } from "../src/components/order-book-view";
-import { LongShortView } from "../src/components/long-short-view";
-import { styles } from "../src/components/styles";
+import { Link, Stack } from "expo-router";
+import { ActivityIndicator, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { describeState, isRunning, isTransitioning, switchIsOn } from "../src/blocking/state";
+import { useBlocking } from "../src/blocking/use-blocking";
+import { colors } from "../src/theme";
 
-type AppView = "book" | "ratio";
-const exchanges: Exchange[] = ["binance", "bybit"];
-const markets: Market[] = ["spot", "futures"];
-const views: AppView[] = ["book", "ratio"];
-const exchangeLabels = { binance: "Binance", bybit: "Bybit" };
-const marketLabels = { spot: "Spot", futures: "Futures" };
-const viewLabels = { book: "Book", ratio: "Long/Short" };
-const noSubscribe = () => () => {};
-const connecting = () => "connecting" as Status;
-
-const Connection = memo(function Connection({
-  session,
-  ratioStatus,
-  view,
-  missingStatus,
-}: {
-  session: BookSession | null;
-  ratioStatus: Status;
-  view: AppView;
-  missingStatus: Status;
-}) {
-  const bookStatus = useSyncExternalStore(
-    session?.subscribeStatus ?? noSubscribe,
-    session?.getStatus ?? connecting,
-    session?.getStatus ?? connecting,
-  );
-  const status =
-    view === "ratio" ? ratioStatus : session ? bookStatus : missingStatus;
+export default function Home() {
+  const { state, busy, error, change, refresh } = useBlocking();
+  const insets = useSafeAreaInsets();
+  const active = switchIsOn(state);
+  const pending = busy || isTransitioning(state);
   return (
-    <View
-      accessibilityLiveRegion="polite"
-      style={[
-        styles.statusPill,
-        status === "live" ? styles.statusLive : styles.statusOff,
-      ]}
-    >
-      <Text style={styles.statusText}>
-        {status === "live"
-          ? "LIVE"
-          : status === "offline"
-            ? "OFFLINE"
-            : status === "reconnecting"
-              ? "RECONNECT"
-              : "CONNECTING"}
-      </Text>
-    </View>
-  );
-});
+    <>
+      <Stack.Screen options={{ title: "Scrollblock" }} />
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 36, paddingBottom: Math.max(insets.bottom, 24) }}>
+        <View style={{ width: "100%", maxWidth: 520, alignSelf: "center", flex: 1 }}>
+          <View accessible={false} style={{ width: 64, height: 64, borderRadius: 22, backgroundColor: colors.accent, flexDirection: "row", gap: 7, justifyContent: "center", alignItems: "center", marginBottom: 28 }}>
+            <View style={{ width: 7, height: 25, borderRadius: 3, backgroundColor: colors.background }} />
+            <View style={{ width: 7, height: 25, borderRadius: 3, backgroundColor: colors.background }} />
+          </View>
+          <Text style={{ color: colors.text, fontSize: 34, lineHeight: 40, fontWeight: "600", letterSpacing: -1 }}>Less scrolling.{"\n"}More living.</Text>
+          <Text style={{ color: colors.muted, fontSize: 16, lineHeight: 24, marginTop: 14, marginBottom: 38 }}>Keep Instagram. Put a stop to the endless Reels feed.</Text>
 
-const FeedNotice = memo(function FeedNotice({
-  session,
-}: {
-  session: BookSession;
-}) {
-  const notice = useSyncExternalStore(
-    session.subscribeStatus,
-    session.getNotice,
-    session.getNotice,
-  );
-  return notice ? (
-    <View style={styles.notice}>
-      <Text selectable style={styles.noticeText}>
-        {notice} · retrying
-      </Text>
-    </View>
-  ) : null;
-});
-
-function Tabs<T extends string>({
-  items,
-  labels,
-  selected,
-  onSelect,
-}: {
-  items: T[];
-  labels: Record<T, string>;
-  selected: T;
-  onSelect: (item: T) => void;
-}) {
-  return (
-    <View style={styles.marketTabs}>
-      {items.map((item) => (
-        <Pressable
-          key={item}
-          accessibilityRole="button"
-          accessibilityState={{ selected: selected === item }}
-          style={[
-            styles.marketTab,
-            selected === item && styles.marketTabActive,
-          ]}
-          onPress={() => {
-            Keyboard.dismiss();
-            onSelect(item);
-          }}
-        >
-          <Text
-            style={[
-              styles.marketText,
-              selected === item && styles.marketTextActive,
-            ]}
-          >
-            {labels[item]}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-export default function OrderBookScreen() {
-  const [exchange, setExchange] = useState<Exchange>("binance");
-  const [market, setMarket] = useState<Market>("spot");
-  const [view, setView] = useState<AppView>("book");
-  const [symbol, setSymbol] = useState("BTCUSDT");
-  const active = useForeground();
-  const catalogs = useCatalogs(active);
-  const bookCatalog = catalogs[exchange + ":" + market];
-  const visibleMarket = view === "ratio" ? "futures" : market;
-  const catalog = catalogs[exchange + ":" + visibleMarket];
-  const instrument = bookCatalog.items.find((item) => item.symbol === symbol);
-  const key = exchange + ":" + market + ":" + symbol;
-  const ratioKey = exchange + ":" + symbol;
-  const [ratioState, setRatioState] = useState<{ key: string; status: Status }>(
-    { key: "", status: "connecting" },
-  );
-  const onRatioStatus = useMemo(
-    () => (status: Status) => setRatioState({ key: ratioKey, status }),
-    [ratioKey],
-  );
-  const session = useMemo(
-    () =>
-      instrument ? new BookSession({ exchange, market, instrument }) : null,
-    [
-      exchange,
-      market,
-      symbol,
-      instrument?.tick,
-      instrument?.lot,
-      instrument?.base,
-      instrument?.quote,
-    ],
-  );
-  useEffect(() => {
-    if (!session || !active) return;
-    session.start();
-    return () => session.stop();
-  }, [session, active]);
-  useEffect(() => {
-    if (!active) Keyboard.dismiss();
-  }, [active]);
-  const available = catalog.items.some((item) => item.symbol === symbol);
-  const notice =
-    catalog.state === "error"
-      ? "Market data unavailable. Retrying..."
-      : catalog.state === "loading"
-        ? "Loading symbols..."
-        : !available
-          ? symbol + " Not found"
-          : catalog.error
-            ? "Symbol catalog refresh failed. Retrying..."
-            : null;
-
-  return (
-    <SafeAreaView style={styles.screen} onTouchStart={Keyboard.dismiss}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.appName}>Stakan</Text>
-          <Text style={styles.subtitle}>
-            {exchangeLabels[exchange]} market data
-          </Text>
+          <View style={{ borderRadius: 24, borderCurve: "continuous", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, padding: 20, gap: 20 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              <View accessible={false} style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: "#382A35", alignItems: "center", justifyContent: "center" }}>
+                <View style={{ width: 27, height: 27, borderWidth: 2, borderColor: "#F2D4E6", borderRadius: 8, alignItems: "center", justifyContent: "center" }}>
+                  <View style={{ width: 11, height: 11, borderWidth: 2, borderColor: "#F2D4E6", borderRadius: 6 }} />
+                  <View style={{ position: "absolute", right: 3, top: 3, width: 3, height: 3, borderRadius: 2, backgroundColor: "#F2D4E6" }} />
+                </View>
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Instagram</Text>
+                <Text style={{ color: colors.text, fontSize: 21, fontWeight: "600" }}>Reels</Text>
+              </View>
+              <Switch accessibilityLabel="Block newly recommended Instagram Reels" accessibilityHint={state.rulesReady ? "Starts a five-minute experimental filtering session" : "Unavailable until selective blocking rules have been validated"}
+                value={active} disabled={pending || !state.available || (!state.rulesReady && !active) || (isRunning(state) && state.mode === "observe")}
+                onValueChange={value => void change(value ? "block" : "stop")} trackColor={{ false: "#46544B", true: colors.accent }} thumbColor={active ? colors.background : "#E5EBE6"} />
+            </View>
+            <View style={{ borderTopWidth: 1, borderColor: colors.line, paddingTop: 16, flexDirection: "row", alignItems: "center", gap: 9 }}>
+              {pending ? <ActivityIndicator size="small" color={colors.accent} /> : <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: active ? colors.accent : colors.subtle }} />}
+              <Text accessibilityLiveRegion="polite" style={{ color: colors.muted, fontSize: 13, flex: 1 }}>{describeState(state)}</Text>
+            </View>
+          </View>
+          {!state.rulesReady && <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 16 }}>This early build does not block Reels yet. A selective rule needs testing before the switch can be enabled.</Text>}
+          {state.rulesReady && <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 16 }}>Experimental five-minute sessions. Previously loaded Reels may still play. Verify the result in Instagram.</Text>}
+          {error && <Text selectable accessibilityRole="alert" style={{ color: colors.error, fontSize: 14, lineHeight: 21, marginTop: 16 }}>{error}</Text>}
+          {(isRunning(state) || state.status === "unknown") && <Pressable accessibilityRole="button" onPress={() => void change("stop")} disabled={busy} style={{ paddingVertical: 16 }}><Text style={{ color: colors.accent, fontSize: 16 }}>Stop network session</Text></Pressable>}
+          {error && <Pressable accessibilityRole="button" onPress={() => void refresh()} style={{ paddingVertical: 16 }}><Text style={{ color: colors.accent }}>Refresh status</Text></Pressable>}
+          <View style={{ flex: 1, minHeight: 70 }} />
+          <Link href="/testing" asChild><Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: "center" }}><Text style={{ color: colors.accent, textAlign: "center", fontSize: 15 }}>Network test & privacy</Text></Pressable></Link>
+          <Text style={{ color: colors.subtle, textAlign: "center", fontSize: 12, marginTop: 8 }}>Early access · iOS 18+</Text>
         </View>
-        <Connection
-          session={session}
-          view={view}
-          missingStatus={catalog.state === "loading" ? "connecting" : "offline"}
-          ratioStatus={
-            ratioState.key === ratioKey && available
-              ? ratioState.status
-              : catalog.state === "loading" || available
-                ? "connecting"
-                : "offline"
-          }
-        />
-      </View>
-      <View style={styles.controls}>
-        <Tabs
-          items={exchanges}
-          labels={exchangeLabels}
-          selected={exchange}
-          onSelect={setExchange}
-        />
-        <Tabs
-          items={views}
-          labels={viewLabels}
-          selected={view}
-          onSelect={setView}
-        />
-        <View style={styles.marketTabs}>
-          {markets.map((item) => {
-            const candidate = catalogs[exchange + ":" + item];
-            const disabled =
-              candidate.state === "ready" && !candidate.items.length;
-            return (
-              <Pressable
-                key={item}
-                accessibilityRole="button"
-                accessibilityState={{
-                  selected: visibleMarket === item,
-                  disabled,
-                }}
-                disabled={disabled}
-                style={[
-                  styles.marketTab,
-                  visibleMarket === item && styles.marketTabActive,
-                  disabled && styles.marketTabDisabled,
-                ]}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setMarket(item);
-                  if (view === "ratio" && item === "spot") setView("book");
-                }}
-              >
-                <Text
-                  style={[
-                    styles.marketText,
-                    visibleMarket === item && styles.marketTextActive,
-                    disabled && styles.marketTextDisabled,
-                  ]}
-                >
-                  {marketLabels[item]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <View style={styles.selectorRow}>
-          <SymbolPicker
-            items={catalog.items}
-            symbol={symbol}
-            onSelect={setSymbol}
-            active={active}
-            closeKey={
-              exchange + ":" + visibleMarket + ":" + view + ":" + symbol
-            }
-          />
-          {view === "book" && session ? (
-            <PriceStepInput key={key} session={session} />
-          ) : null}
-        </View>
-      </View>
-      {notice ? (
-        <View style={styles.notice}>
-          <Text
-            selectable
-            accessibilityLiveRegion="polite"
-            style={styles.noticeText}
-          >
-            {notice}
-          </Text>
-        </View>
-      ) : null}
-      {view === "book" && session ? (
-        <>
-          <FeedNotice session={session} />
-          <OrderBookView key={key} session={session} />
-        </>
-      ) : view === "ratio" && available ? (
-        <LongShortView
-          key={ratioKey}
-          exchange={exchange}
-          symbol={symbol}
-          active={active}
-          onStatus={onRatioStatus}
-        />
-      ) : (
-        <View style={{ flex: 1 }} />
-      )}
-    </SafeAreaView>
+      </ScrollView>
+    </>
   );
 }

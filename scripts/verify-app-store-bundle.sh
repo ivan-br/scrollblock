@@ -11,11 +11,17 @@ test -f "$APP_PATH/embedded.mobileprovision"
 test -f "$APP_PATH/PrivacyInfo.xcprivacy"
 plutil -lint "$APP_PATH/PrivacyInfo.xcprivacy"
 codesign --verify --deep --strict "$APP_PATH"
-codesign -d --entitlements :- "$APP_PATH" > "$CHECK_DIR/entitlements.plist" 2>/dev/null
-security cms -D -i "$APP_PATH/embedded.mobileprovision" > "$CHECK_DIR/profile.plist"
-plutil -convert xml1 -o "$CHECK_DIR/info.plist" "$APP_PATH/Info.plist"
-node scripts/app-store-config.cjs verify \
-  "$CHECK_DIR/info.plist" "$CHECK_DIR/entitlements.plist" "$CHECK_DIR/profile.plist"
+for BUNDLE in "$APP_PATH" "$APP_PATH/PlugIns/ScrollblockTunnel.appex"; do
+  test -f "$BUNDLE/embedded.mobileprovision"
+  codesign --verify --strict "$BUNDLE"
+  codesign -d --entitlements :- "$BUNDLE" > "$CHECK_DIR/entitlements.plist" 2>/dev/null
+  security cms -D -i "$BUNDLE/embedded.mobileprovision" > "$CHECK_DIR/profile.plist"
+  plutil -convert xml1 -o "$CHECK_DIR/info.plist" "$BUNDLE/Info.plist"
+  node scripts/app-store-config.cjs verify \
+    "$CHECK_DIR/info.plist" "$CHECK_DIR/entitlements.plist" "$CHECK_DIR/profile.plist"
+  BUNDLE_EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$BUNDLE/Info.plist")"
+  xcrun lipo "$BUNDLE/$BUNDLE_EXECUTABLE" -verify_arch arm64
+done
 EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Info.plist")"
 xcrun lipo "$APP_PATH/$EXECUTABLE" -verify_arch arm64
 echo "Verified signed device app, SDK 26+, build number and privacy manifest."

@@ -6,7 +6,7 @@ IOS_DIR="$ROOT_DIR/ios"
 BUILD_DIR="$ROOT_DIR/build/altstore"
 PAYLOAD_DIR="$BUILD_DIR/Payload"
 DIST_DIR="$ROOT_DIR/dist"
-IPA_PATH="$DIST_DIR/OrderBook.ipa"
+IPA_PATH="$DIST_DIR/Scrollblock.ipa"
 
 if ! xcodebuild -version >/dev/null 2>&1; then
   echo "Full Xcode is required. Install Xcode.app and run:"
@@ -26,6 +26,7 @@ fi
 
 cd "$ROOT_DIR"
 npx expo prebuild --platform ios --no-install
+npm run verify:ios-project
 
 cd "$IOS_DIR"
 pod install

@@ -24,9 +24,12 @@ jobs:
         run: |
           npm test
           npm run typecheck
+          npm run test:native
 
       - name: Prebuild iOS project
-        run: npx expo prebuild --platform ios --clean --no-install
+        run: |
+          npx expo prebuild --platform ios --clean --no-install
+          npm run verify:ios-project
 
       - name: Install CocoaPods dependencies
         run: |
@@ -78,7 +81,7 @@ jobs:
             exit 1
           fi
 
-          rm -rf Payload OrderBook.ipa
+          rm -rf Payload Scrollblock.ipa
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           BUNDLED_APP="Payload/$(basename "$APP_PATH")"
@@ -104,10 +107,11 @@ jobs:
           echo "main.jsbundle format:"
           file "$BUNDLED_APP/main.jsbundle"
 
-          /usr/bin/zip -qry OrderBook.ipa Payload
+          /usr/bin/zip -qry Scrollblock.ipa Payload
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OrderBook-unsigned-ipa
-          path: OrderBook.ipa
+          name: Scrollblock-unsigned-ipa
+          path: Scrollblock.ipa
+          if-no-files-found: error

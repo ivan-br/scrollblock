@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Stakan",
-    "slug": "order-book",
-    "scheme": "orderbook",
+    "name": "Scrollblock",
+    "slug": "scrollblock",
+    "scheme": "scrollblock",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,17 +10,18 @@
     "newArchEnabled": false,
     "plugins": [
       "expo-router",
-      "./plugins/with-orderbook-permissions"
+      "./plugins/with-scrollblock"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#000000"
+      "backgroundColor": "#101513"
     },
     "ios": {
-      "bundleIdentifier": "com.softdev.orderbook",
+      "bundleIdentifier": "com.softdev.scrollblock",
       "jsEngine": "jsc",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +33,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "platforms": [
+      "ios",
+      "web"
+    ]
   }
 }

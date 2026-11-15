@@ -1,8 +1,11 @@
-# Stakan: App Store / TestFlight builds
+# Scrollblock: App Store / TestFlight builds
+
+**Current status:** experimental DNS test build; no validated Reels blocking rules. No signed IPA or TestFlight upload has been produced locally. For the existing unsigned artifact flow and device tests, see [IPHONE_TESTING.md](IPHONE_TESTING.md).
+
 
 ## Audit (2026-10-04)
 
-Apple requires uploads built with Xcode 26+ and the iOS 26 SDK+ since April 28, 2026. Re-signing an old iOS 18.5 binary does not change its build SDK. A new native build is required. SDK version and minimum deployment target are different: this pipeline keeps iOS 15.1 support.
+Apple requires uploads built with Xcode 26+ and the iOS 26 SDK+ since April 28, 2026. Re-signing an old iOS 18.5 binary does not change its build SDK. A new native build is required. SDK version and minimum deployment target are different: this pipeline keeps iOS 18.0 support.
 
 The existing `.github/workflows/build-ios-ipa.yml` deliberately disables signing and ZIPs `Payload/*.app`. It remains the **AltStore-only** workflow. It does not perform an App Store archive/export and must not be used for store uploads.
 
@@ -17,16 +20,16 @@ The supplied IPA summary does not fully match this checkout: `app.json` selects 
 - `.gitignore`: exclude release artifacts and additional signing-material formats.
 - This guide. Existing AltStore workflow, package versions and native runtime settings are unchanged.
 
-## Registered app (2026-10-08)
+## New application identity (2026-11-15)
 
-The App Store Connect listing is **Stakan**, using the registered explicit bundle ID `com.softdev.orderbook`. Expo config, signing validation and both IPA verification paths now use this ID. The installed display name and app header are **Stakan**. Internal workflow artifact names retain OrderBook, and the `orderbook` URL scheme is preserved. Existing AltStore installations using the old ID are separate apps; this change does not migrate their local data. CI regenerates the ignored native project from Expo config; an existing local `ios/` project must also be regenerated before building the new ID.
+The previous template listing was Stakan. This conversion uses **Scrollblock** and `com.softdev.scrollblock`; registration of the new app and extension IDs has NOT been performed by this task. Expo config, signing validation and both IPA verification paths now use this ID. The installed display name is **Scrollblock**, artifacts use Scrollblock, and the URL scheme is `scrollblock`. Existing AltStore installations using the old ID are separate apps; this change does not migrate their local data. CI regenerates the ignored native project from Expo config; an existing local `ios/` project must also be regenerated before building the new ID.
 
 ## Apple prerequisites
 
-1. Active paid Apple Developer Program membership and an explicit App ID `com.softdev.orderbook` belonging to your team.
+1. Active eligible Apple Developer Program membership and explicit App IDs `com.softdev.scrollblock` and `com.softdev.scrollblock.tunnel` belonging to your team, both with Network Extension capability.
 2. Create the matching app record in App Store Connect before uploading. Keep marketing version `1.0.0` unless changing it deliberately in `app.json`.
 3. An **Apple Distribution** certificate exported from Keychain Access **with its private key**, as a password-protected `.p12`.
-4. An **App Store Connect** provisioning profile for this exact App ID and certificate. Development, Personal Team, Ad Hoc, wildcard and Enterprise profiles are rejected before archiving.
+4. Two **App Store Connect** provisioning profiles for the app and tunnel IDs, using the same distribution certificate and authorizing `packet-tunnel-provider`. Development, Personal Team, Ad Hoc, wildcard and Enterprise profiles are rejected before archiving.
 5. For optional upload, a **team App Store Connect API key**, with issuer ID and permission to upload builds (Developer, App Manager or Admin as appropriate). An individual key without issuer ID is not supported by this workflow.
 
 Never send private keys or certificates in chat, put them in app config, or commit them. `.gitignore` is a safeguard, not a substitute for checking staged files.
@@ -42,7 +45,8 @@ Build secrets in **app-store**:
 | `APPLE_TEAM_ID` | Your 10-character Apple Developer team ID. |
 | `APPLE_DISTRIBUTION_P12_BASE64` | Base64 of the Apple Distribution `.p12`, including its private key. |
 | `APPLE_DISTRIBUTION_P12_PASSWORD` | Password used when exporting that `.p12`. |
-| `APP_STORE_PROFILE_BASE64` | Base64 of the matching App Store `.mobileprovision`. |
+| `APP_STORE_PROFILE_BASE64` | Base64 of the app App Store `.mobileprovision`. |
+| `APP_STORE_TUNNEL_PROFILE_BASE64` | Base64 of the extension App Store `.mobileprovision`. |
 
 Optional upload secrets in **app-store-upload**:
 
@@ -67,12 +71,12 @@ No keychain-password secret is needed. The job generates a random masked tempora
 1. Push the reviewed files to a trusted branch. For a newly added manual workflow, GitHub must first know the workflow on the default branch. No changes were committed or pushed by this implementation.
 2. Open Actions -> **Build iOS App Store** -> Run workflow.
 3. Leave **upload_to_testflight** unchecked for a build/export-only run. Signing secrets are still required.
-4. Download `OrderBook-AppStore-<build_number>` for the signed IPA and retain its matching dSYMs for crash symbolication.
+4. Download `Scrollblock-AppStore-<build_number>` for the signed IPA and retain its matching dSYMs for crash symbolication.
 5. Once upload secrets and the app record exist, enable **upload_to_testflight**. The separate upload job validates and uploads the signed artifact using `altool` and the API key. Without the secrets it fails explicitly; it never falls back to an unsigned build or Apple-ID password login.
 
 The runner is `macos-26`, with `DEVELOPER_DIR` explicitly set to Xcode **26.2** (iOS SDK **26.2**). Both Xcode and SDK versions are checked before compilation; archive and exported IPA metadata are checked again. If GitHub retires that installed Xcode version, select another installed **stable 26+** version after testing; there is intentionally no silent fallback to the runner default or a beta.
 
-`ios/` is ignored and generated fresh with `expo prebuild --clean --no-install`, followed by `pod install`. Expo plugins and the lockfile remain the JS/native dependency source of truth. The generated app target gets manual signing; Pods are not assigned the app's provisioning profile. This workflow intentionally fails if extensions/additional apps appear, because each additional signed bundle needs its own provisioning profile and export mapping.
+`ios/` is ignored and generated fresh with `expo prebuild --clean --no-install`, followed by `pod install`. Expo plugins and the lockfile remain the JS/native dependency source of truth. Both generated Release targets get their own manual signing profile; Pods are not assigned either profile. The workflow requires exactly the app and ScrollblockTunnel extension, with separate profiles and export mappings. Unexpected extra targets fail validation.
 
 Release uses `archive` for `generic/platform=iOS`, then `-exportArchive` with `method: app-store-connect`, `destination: export`, manual signing and the explicit bundle/profile mapping. Nothing ZIPs a raw `.app` into a store IPA. The generated export-options plist is temporary and contains no private key.
 
@@ -99,7 +103,7 @@ The configured local Xcode is 15.2. An actual Xcode 26 archive, certificate impo
 
 Implementation checks passed: 7 release-configuration tests, 25 application tests, TypeScript, all 12 workflow shell blocks plus the verification script (`bash -n`), and `actionlint` 1.7.11. A copy of the existing generated Xcode project was configured, serialized and parsed again successfully; only the app Release configuration received provisioning settings. No private credentials were used for these tests.
 
-Upload success is not an App Store publication or even completed TestFlight processing. Check processing errors and export-compliance questions in App Store Connect, assign testers (external testing may require Beta App Review), and test on physical devices. For production, supply store screenshots, description, support and privacy-policy URLs, age rating, accurate App Privacy disclosures (including third-party exchange access), and submit for App Review. A bundled privacy manifest is necessary where required, but alone does not establish compliant disclosures or approval. No answers to legal/export/privacy questionnaires are fabricated by this workflow.
+Upload success is not an App Store publication or even completed TestFlight processing. Check processing errors and export-compliance questions in App Store Connect, assign testers (external testing may require Beta App Review), and test on physical devices. For production, supply store screenshots, description, support and privacy-policy URLs, age rating, accurate App Privacy disclosures (including DNS forwarding to Cloudflare), and submit for App Review. A bundled privacy manifest is necessary where required, but alone does not establish compliant disclosures or approval. No answers to legal/export/privacy questionnaires are fabricated by this workflow.
 
 Sources:
 - [Apple minimum SDK requirement](https://developer.apple.com/news/upcoming-requirements/?id=04282026a)

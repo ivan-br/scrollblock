@@ -1,3 +1,5 @@
+> Historical order-book audit. The template was converted to Scrollblock; see SUMMARY.md for current status.
+
 # OrderBook Bug and Performance Audit
 
 Date: 2026-10-03
